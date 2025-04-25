@@ -14,7 +14,7 @@ services:
       - ./init.groovy.d:/usr/share/jenkins/ref/init.groovy.d
     environment:
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false  # Skip initial setup wizard
-
+      - JAVA_HOME=/opt/java/openjdk  # Add this line to set JAVA_HOME
 volumes:
   jenkins_home:
     driver: local

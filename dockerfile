@@ -11,7 +11,7 @@ RUN apt-get update && \
     apt-get install -y temurin-21-jdk && \
     apt-get clean
 
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk
+ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 USER jenkins

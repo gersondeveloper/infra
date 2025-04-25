@@ -2,58 +2,236 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'RELEASE_VERSION', defaultValue: '1.1.0', description: 'Versão do release (sem -SNAPSHOT)')
-        string(name: 'NEXT_VERSION', defaultValue: '1.2.0-SNAPSHOT', description: 'Versão seguinte para continuar o dev')
+        choice(name: 'PROJECT', choices: ['CCLD', 'CCLM', 'ALL'], description: 'Projeto para gerar release')
+        string(name: 'NEW_VERSION', defaultValue: '1.2.1', description: 'Nova versão a ser gerada (ex: 1.2.1)')
+    }
+
+    environment {
+        CCLD_REPOSITORY = '{enderecoRepositorioCCLD}'
+        CCLM_REPOSITORY = '{enderecoRepositorioCCLM}'
+
+        MAIN_BRANCH_CCLD = 'master'
+        MAIN_BRANCH_CCLM = 'main'
+
+        CCLD_CLOSED_VERSION = ''
+        CCLM_CLOSED_VERSION = ''
+
+        CHANGELOG_FILE = "CHANGELOG-${params.NEW_VERSION}.txt"
+        START_TIME = ""
     }
 
     stages {
-        stage('Checkout') {
+        stage('Init') {
             steps {
-                git url: 'https://github.com/gersondeveloper/ccld.git', branch: 'master'
+                script {
+                    env.START_TIME = System.currentTimeMillis()
+                    echo "\u001B[34m====================== Iniciando Pipeline de Release ======================\\u001B[0m"
+                }
             }
         }
 
-        stage('Build & Test') {
+        stage('Clean Workspace') {
             steps {
-                sh 'mvn clean install'
+                deleteDir()
+                echo "\u001B[32m✔️ Workspace limpo com sucesso\u001B[0m"
             }
         }
 
-        stage('Atualizar versão para release') {
-            steps {
-                sh "mvn versions:set -DnewVersion=${params.RELEASE_VERSION}"
-                sh "mvn versions:commit"
+        stage('Fetch Code') {
+            parallel {
+                stage('Fetch CCLD') {
+                    when { anyOf { expression { params.PROJECT == 'CCLD' }; expression { params.PROJECT == 'ALL' } } }
+                    steps {
+                        script {
+                            echo "\u001B[34m=== Fetching CCLD Repository ===\u001B[0m"
+                            checkout([$class: 'GitSCM', branches: [[name: "*/${env.MAIN_BRANCH_CCLD}"]], userRemoteConfigs: [[url: env.CCLD_REPOSITORY]]])
+                            echo "\u001B[32m✔️ CCLD repository fetch concluído\u001B[0m"
+                        }
+                    }
+                }
+                stage('Fetch CCLM') {
+                    when { anyOf { expression { params.PROJECT == 'CCLM' }; expression { params.PROJECT == 'ALL' } } }
+                    steps {
+                        script {
+                            echo "\u001B[34m=== Fetching CCLM Repository ===\u001B[0m"
+                            checkout([$class: 'GitSCM', branches: [[name: "*/${env.MAIN_BRANCH_CCLM}"]], userRemoteConfigs: [[url: env.CCLM_REPOSITORY]]])
+                            echo "\u001B[32m✔️ CCLM repository fetch concluído\u001B[0m"
+                        }
+                    }
+                }
             }
         }
 
-        stage('Commit + Tag') {
+        stage('Detectar Última Tag') {
             steps {
-                sh """
-                    git config user.name "jenkins"
-                    git config user.email "jenkins@localhost"
-                    git commit -am "release: ${params.RELEASE_VERSION}"
-                    git tag v${params.RELEASE_VERSION}
-                    git push origin master
-                    git push origin v${params.RELEASE_VERSION}
-                """
+                script {
+                    echo "\u001B[34m=== Detectando última tag ===\u001B[0m"
+                    env.LAST_TAG = sh(
+                        script: '''
+                            git fetch --tags
+                            git tag --sort=-creatordate | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | head -n 1
+                        ''',
+                        returnStdout: true
+                    ).trim()
+                    echo "\u001B[32m✔️ Última tag detectada: ${env.LAST_TAG}\u001B[0m"
+                }
             }
         }
 
-        stage('Deploy') {
+        stage('Close Current Version') {
             steps {
-                sh "mvn clean deploy -Pgithub"
+                script {
+                    echo "\u001B[34m=== Fechando a versão atual ===\u001B[0m"
+                    if (params.PROJECT == 'CCLD' || params.PROJECT == 'ALL') {
+                        closeCCLDVersion(params.NEW_VERSION)
+                    }
+                    if (params.PROJECT == 'CCLM' || params.PROJECT == 'ALL') {
+                        closeCCLMVersion(params.NEW_VERSION, env.LAST_TAG)
+                    }
+                    echo "\u001B[32m✔️ Versão fechada com sucesso\u001B[0m"
+                }
             }
         }
 
-        stage('Atualizar para próxima versão') {
+        stage('Criar nova branch de release') {
             steps {
-                sh "mvn versions:set -DnewVersion=${params.NEXT_VERSION}"
-                sh "mvn versions:commit"
-                sh """
-                    git commit -am "chore: prepara próxima versão ${params.NEXT_VERSION}"
-                    git push origin master
-                """
+                script {
+                    echo "\u001B[34m=== Criando nova branch de release ===\u001B[0m"
+                    env.BRANCH_NAME = "release/${params.NEW_VERSION}"
+                    sh "git checkout -b ${env.BRANCH_NAME}"
+                    echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} criada\u001B[0m"
+                }
+            }
+        }
+
+        stage('Gerar Changelog e Cherry-pick se necessário') {
+            steps {
+                script {
+                    echo "\u001B[34m=== Gerando changelog e realizando cherry-pick se necessário ===\u001B[0m"
+                    def (major, minor, patch) = params.NEW_VERSION.tokenize('.')*.toInteger()
+                    def commits = sh(
+                        script: "git log ${env.LAST_TAG}..origin/${params.PROJECT == 'CCLM' ? env.MAIN_BRANCH_CCLM : env.MAIN_BRANCH_CCLD} --grep='CCLDASH-' --format='%H %s'",
+                        returnStdout: true
+                    ).trim().split("\n")
+
+                    if (commits[0] != "") {
+                        def changelog = "Changelog para release ${params.NEW_VERSION}\n\n"
+                        commits.each { entry ->
+                            def (sha, *messageParts) = entry.tokenize(" ")
+                            def message = messageParts.join(" ")
+
+                            changelog += "- ${message}\n"
+
+                            if (patch > 0) {
+                                try {
+                                    echo "\u001B[32m✔️ Cherry-pick do commit ${sha}\u001B[0m"
+                                    sh "git cherry-pick ${sha}"
+                                } catch (Exception e) {
+                                    echo "\u001B[31m❌ Conflito encontrado no cherry-pick do commit ${sha}. Abortando...\u001B[0m"
+                                    sh "git cherry-pick --abort"
+                                    error("Cherry-pick falhou. Ajuste manualmente.")
+                                }
+                            }
+                        }
+
+                        writeFile file: env.CHANGELOG_FILE, text: changelog
+                        sh "git add ${env.CHANGELOG_FILE}"
+                        sh "git commit -m 'docs: adiciona changelog da release ${params.NEW_VERSION}'"
+                        echo "\u001B[32m✔️ Changelog gerado e commitado\u001B[0m"
+                    } else {
+                        echo "\u001B[33m⚠️ Nenhum commit CCLDASH- encontrado para gerar changelog\u001B[0m"
+                    }
+                }
+            }
+        }
+
+        stage('Atualizar versão no gradle.properties') {
+            steps {
+                script {
+                    echo "\u001B[34m=== Atualizando versão no gradle.properties ===\u001B[0m"
+                    sh '''
+                        sed -i "s/^version=.*/version=${NEW_VERSION}/" gradle.properties
+                        git add gradle.properties
+                        git commit -m "chore: bump version to ${NEW_VERSION}"
+                    '''
+                    echo "\u001B[32m✔️ Versão atualizada no gradle.properties\u001B[0m"
+                }
+            }
+        }
+
+        stage('Push nova branch de release') {
+            steps {
+                sh '''
+                    git config user.name "jenkins-bot"
+                    git config user.email "jenkins@yourcompany.com"
+                    git push origin ${BRANCH_NAME}
+                '''
+                echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"
+            }
+        }
+
+        stage('Criar e Push da Tag') {
+            steps {
+                sh '''
+                    git tag ${NEW_VERSION}
+                    git push origin ${NEW_VERSION}
+                '''
+                echo "\u001B[32m✔️ Tag ${params.NEW_VERSION} criada e enviada\u001B[0m"
             }
         }
     }
+
+    post {
+        success {
+            script {
+                def totalTime = (System.currentTimeMillis() - START_TIME.toLong()) / 60000
+                echo "\u001B[32m🏁 Pipeline finalizada com sucesso em ${totalTime} minutos.\u001B[0m"
+            }
+        }
+        failure {
+            echo "\u001B[31m❌ Pipeline falhou!\\u001B[0m"
+        }
+    }
+}
+
+// Funções auxiliares
+
+def closeCCLDVersion(productVersion) {
+    echo "\u001B[34m=== Fechando versão para o projeto CCLD ===\u001B[0m"
+    sh '''
+        ./gradlew setProductVersion -PproductVersion='${productVersion}'
+        cd ccl-dashboard/frontend
+        changes=$(git diff --name-only src/environments.model.ts)
+        if [ ! -z "$changes" ]; then
+            git add src/environments/environment.model.ts
+            git commit -m "Product version ${productVersion}.0 opened"
+            git push origin master
+        fi
+    '''
+    echo "\u001B[32m✔️ Versão do CCLD fechada e alterada no frontend\u001B[0m"
+}
+
+def closeCCLMVersion(productVersion, lastCcldVersion) {
+    echo "\u001B[34m=== Fechando versão para o projeto CCLM ===\u001B[0m"
+    sh """
+        cd cc-messaging
+        currentCcldVersion=\$(xmllint --xpath "//*[local-name()='dependency'][*[local-name()='artifactId']='ccld-artifact']/version/text()" pom.xml || echo '')
+        echo "Versão atual da dependência CCLD: \$currentCcldVersion"
+        echo "Última tag do CCLD detectada: ${lastCcldVersion}"
+        
+        if [ "\$currentCcldVersion" != "${lastCcldVersion}" ] && [ ! -z "\$currentCcldVersion" ]; then
+            echo "Atualizando versão da dependência CCLD no pom.xml..."
+            mvn versions:set-property -Dproperty=ccld.version -DnewVersion=${lastCcldVersion} -DgenerateBackupPoms=false
+            git add pom.xml
+            git commit -m "chore: update CCLD dependency to version ${lastCcldVersion}"
+        fi
+
+        echo "Atualizando versão principal do CCLM..."
+        mvn versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+        mvn clean install -DskipTests
+        git add .
+        git commit -m "Artifact version ${productVersion} closed for product version ${productVersion}"
+        git push origin ${MAIN_BRANCH_CCLM}
+    """
+    echo "\u001B[32m✔️ Versão do CCLM fechada com sucesso\u001B[0m"
 }

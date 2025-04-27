@@ -209,15 +209,34 @@ def closeCCLDVersion(productVersion) {
             cp gradle.properties.example gradle.properties
         fi
         ./gradlew setProductVersion -PproductVersion='${productVersion}'
-        cd src/frontend
-        changes=$(git diff --name-only src/environments.model.ts)
-        if [ ! -z "$changes" ]; then
-            git add src/environments/environment.model.ts
-            git commit -m "Product version ${productVersion}.0 opened"
-            git push origin master
-        fi
     '''
-    echo "\u001B[32m✔️ Versão do CCLD fechada e alterada no frontend\u001B[0m"
+    
+    // Verificar se houve alterações no build.gradle ou na branch
+    def changes = sh(
+        script: "git status --porcelain | grep 'build.gradle'",
+        returnStatus: true
+    )
+    
+    if (changes == 0) {
+        echo "\u001B[34m=== Alterações detectadas no build.gradle ===\u001B[0m"
+        
+        // Obter a nova versão do gradle.properties
+        def newVersion = sh(
+            script: "grep '^version=' gradle.properties | cut -d'=' -f2",
+            returnStdout: true
+        ).trim()
+        
+        // Adicionar e commitar as alterações
+        sh '''
+            git add build.gradle
+            git commit -m "Versão do produto fechada para ${newVersion}"
+        '''
+        echo "\u001B[32m✔️ Alterações no build.gradle commitadas com sucesso\u001B[0m"
+    } else {
+        echo "\u001B[33m⚠️ Nenhuma alteração detectada no build.gradle\u001B[0m"
+    }
+    
+    echo "\u001B[32m✔️ Versão do CCLD fechada e alterada\u001B[0m"
 }
 
 def closeCCLMVersion(productVersion, lastCcldVersion) {

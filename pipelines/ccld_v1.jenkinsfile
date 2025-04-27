@@ -104,10 +104,16 @@ pipeline {
         stage('Criar nova branch de release') {
             steps {
                 script {
-                    echo "\u001B[34m=== Criando nova branch de release ===\u001B[0m"
-                    env.BRANCH_NAME = "release/${params.NEW_VERSION}"
-                    sh "git checkout -b ${env.BRANCH_NAME}"
-                    echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} criada\u001B[0m"
+                    echo "\u001B[34m=== Avaliando necessidade de criação de branch de release ===\u001B[0m"
+                    def tokens = params.NEW_VERSION.tokenize('.')
+                    def patch = tokens[2].toInteger()
+                    if (patch > 0) {
+                        env.BRANCH_NAME = "release/${params.NEW_VERSION}"
+                        sh "git checkout -b ${env.BRANCH_NAME}"
+                        echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} criada\u001B[0m"
+                    } else {
+                        echo "\u001B[33m⚠️ Versão minor detectada. Branch de release não será criada.\u001B[0m"
+                    }
                 }
             }
         }
@@ -173,27 +179,36 @@ pipeline {
         }
 
         stage('Push nova branch de release') {
+            when {
+                expression { return env.BRANCH_NAME }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-pat',
                                           usernameVariable: 'GIT_USERNAME',
                                           passwordVariable: 'GIT_PASSWORD')]) {
-            sh """
-                git config --global credential.helper cache
-                git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/gersondeveloper/ccld.git
-                git push origin ${env.BRANCH_NAME}
-            """
-        }
+                    sh """
+                        git config --global credential.helper cache
+                        git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/gersondeveloper/ccld.git
+                        git push origin ${env.BRANCH_NAME}
+                    """
+                }
                 echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"
             }
         }
 
         stage('Criar e Push da Tag') {
             steps {
-                sh '''
-                    git tag ${NEW_VERSION}
-                    git push origin ${NEW_VERSION}
-                '''
-                echo "\u001B[32m✔️ Tag ${params.NEW_VERSION} criada e enviada\u001B[0m"
+                script {
+                    echo "\u001B[34m=== Criando e enviando a Tag da versão fechada ===\u001B[0m"
+                    def versionToTag = (params.PROJECT == 'CCLD') ? env.CCLD_CLOSED_VERSION :
+                                       (params.PROJECT == 'CCLM') ? env.CCLM_CLOSED_VERSION :
+                                       env.CCLD_CLOSED_VERSION
+                    sh """
+                        git tag ${versionToTag}
+                        git push origin ${versionToTag}
+                    """
+                    echo "\u001B[32m✔️ Tag ${versionToTag} criada e enviada\u001B[0m"
+                }
             }
         }
     }
@@ -222,22 +237,22 @@ def closeCCLDVersion(productVersion) {
         fi
         ./gradlew setProductVersion -PproductVersion='${productVersion}'
     '''
-    
+
     // Verificar se houve alterações no build.gradle ou na branch
     def changes = sh(
         script: "git status --porcelain | grep 'build.gradle'",
         returnStatus: true
     )
-    
+
     if (changes == 0) {
         echo "\u001B[34m=== Alterações detectadas no build.gradle ===\u001B[0m"
-        
+
         // Obter a nova versão do gradle.properties
         def newVersion = sh(
             script: "grep '^version=' gradle.properties | cut -d'=' -f2",
             returnStdout: true
         ).trim()
-        
+
         // Adicionar e commitar as alterações
         sh '''
             git add build.gradle
@@ -247,8 +262,9 @@ def closeCCLDVersion(productVersion) {
     } else {
         echo "\u001B[33m⚠️ Nenhuma alteração detectada no build.gradle\u001B[0m"
     }
-    
+
     echo "\u001B[32m✔️ Versão do CCLD fechada e alterada\u001B[0m"
+    env.CCLD_CLOSED_VERSION = productVersion
 }
 
 def closeCCLMVersion(productVersion, lastCcldVersion) {
@@ -258,7 +274,7 @@ def closeCCLMVersion(productVersion, lastCcldVersion) {
         currentCcldVersion=\$(xmllint --xpath "//*[local-name()='dependency'][*[local-name()='artifactId']='ccld-artifact']/version/text()" pom.xml || echo '')
         echo "Versão atual da dependência CCLD: \$currentCcldVersion"
         echo "Última tag do CCLD detectada: ${lastCcldVersion}"
-        
+
         if [ "\$currentCcldVersion" != "${lastCcldVersion}" ] && [ ! -z "\$currentCcldVersion" ]; then
             echo "Atualizando versão da dependência CCLD no pom.xml..."
             mvn versions:set-property -Dproperty=ccld.version -DnewVersion=${lastCcldVersion} -DgenerateBackupPoms=false
@@ -274,4 +290,5 @@ def closeCCLMVersion(productVersion, lastCcldVersion) {
         git push origin ${MAIN_BRANCH_CCLM}
     """
     echo "\u001B[32m✔️ Versão do CCLM fechada com sucesso\u001B[0m"
+    env.CCLM_CLOSED_VERSION = productVersion
 }

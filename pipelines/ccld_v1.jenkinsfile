@@ -10,8 +10,8 @@ pipeline {
         CCLD_REPOSITORY = 'https://github.com/gersondeveloper/ccld.git'
         CCLM_REPOSITORY = 'https://github.com/gersondeveloper/cclm.git'
 
-        MAIN_BRANCH_CCLD = 'master'
-        MAIN_BRANCH_CCLM = 'master'
+        MAIN_BRANCH_CCLD = 'main'
+        MAIN_BRANCH_CCLM = 'main'
 
         CCLD_CLOSED_VERSION = ''
         CCLM_CLOSED_VERSION = ''

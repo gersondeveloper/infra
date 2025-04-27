@@ -197,17 +197,22 @@ pipeline {
         }
 
         stage('Criar e Push da Tag') {
-            steps {
-                script {
-                    echo "\u001B[34m=== Criando e enviando a Tag da versão fechada ===\u001B[0m"
-                    def versionToTag = (params.PROJECT == 'CCLD') ? env.CCLD_CLOSED_VERSION :
-                                       (params.PROJECT == 'CCLM') ? env.CCLM_CLOSED_VERSION :
-                                       env.CCLD_CLOSED_VERSION
-                    sh """
-                        git tag ${versionToTag}
-                        git push origin ${versionToTag}
-                    """
-                    echo "\u001B[32m✔️ Tag ${versionToTag} criada e enviada\u001B[0m"
+                steps {
+                    script {
+                        echo "\u001B[34m=== Criando e enviando a Tag da versão fechada ===\u001B[0m"
+                        def versionToTag = (params.PROJECT == 'CCLD') ? env.CCLD_CLOSED_VERSION :
+                                           (params.PROJECT == 'CCLM') ? env.CCLM_CLOSED_VERSION :
+                                           env.CCLD_CLOSED_VERSION
+                        withCredentials([usernamePassword(credentialsId: 'github-pat',
+                          usernameVariable: 'GIT_USERNAME',
+                          passwordVariable: 'GIT_PASSWORD')]){
+                            sh """
+                                git tag ${versionToTag}
+                                git push origin ${versionToTag}
+                            """
+                        }
+                        echo "\u001B[32m✔️ Tag ${versionToTag} criada e enviada\u001B[0m"
+                    }
                 }
             }
         }

@@ -26,9 +26,17 @@ pipeline {
                 script {
                     env.START_TIME = System.currentTimeMillis()
                     echo "\u001B[34m====================== Iniciando Pipeline de Release ======================\\u001B[0m"
+
+                    // Configuração global do Git para identidade do autor
+                    sh '''
+                        git config --global user.name "jenkins-bot"
+                        git config --global user.email "jenkins@yourcompany.com"
+                    '''
+                    echo "\u001B[32m✔️ Configuração de identidade Git definida globalmente\u001B[0m"
                 }
             }
         }
+
 
         stage('Clean Workspace') {
             steps {
@@ -167,8 +175,6 @@ pipeline {
         stage('Push nova branch de release') {
             steps {
                 sh '''
-                    git config user.name "jenkins-bot"
-                    git config user.email "jenkins@yourcompany.com"
                     git push origin ${BRANCH_NAME}
                 '''
                 echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"

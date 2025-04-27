@@ -7,11 +7,11 @@ pipeline {
     }
 
     environment {
-        CCLD_REPOSITORY = '{enderecoRepositorioCCLD}'
-        CCLM_REPOSITORY = '{enderecoRepositorioCCLM}'
+        CCLD_REPOSITORY = 'https://github.com/gersondeveloper/ccld.git'
+        CCLM_REPOSITORY = 'https://github.com/gersondeveloper/cclm.git'
 
         MAIN_BRANCH_CCLD = 'master'
-        MAIN_BRANCH_CCLM = 'main'
+        MAIN_BRANCH_CCLM = 'master'
 
         CCLD_CLOSED_VERSION = ''
         CCLM_CLOSED_VERSION = ''
@@ -108,7 +108,10 @@ pipeline {
             steps {
                 script {
                     echo "\u001B[34m=== Gerando changelog e realizando cherry-pick se necessário ===\u001B[0m"
-                    def (major, minor, patch) = params.NEW_VERSION.tokenize('.')*.toInteger()
+                    def tokens = params.NEW_VERSION.tokenize('.')
+                    def major = tokens[0].toInteger()
+                    def minor = tokens[1].toInteger()
+                    def patch = tokens[2].toInteger()
                     def commits = sh(
                         script: "git log ${env.LAST_TAG}..origin/${params.PROJECT == 'CCLM' ? env.MAIN_BRANCH_CCLM : env.MAIN_BRANCH_CCLD} --grep='CCLDASH-' --format='%H %s'",
                         returnStdout: true
@@ -117,7 +120,9 @@ pipeline {
                     if (commits[0] != "") {
                         def changelog = "Changelog para release ${params.NEW_VERSION}\n\n"
                         commits.each { entry ->
-                            def (sha, *messageParts) = entry.tokenize(" ")
+                            def entryTokens = entry.tokenize(" ") // Renamed from 'tokens' to 'entryTokens'
+                            def sha = entryTokens[0]
+                            def messageParts = entryTokens[1..-1]
                             def message = messageParts.join(" ")
 
                             changelog += "- ${message}\n"

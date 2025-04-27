@@ -204,13 +204,12 @@ pipeline {
 def closeCCLDVersion(productVersion) {
     echo "\u001B[34m=== Fechando versão para o projeto CCLD ===\u001B[0m"
     sh '''
-        cd ccl-dashboard
-            if [ ! -f gradle.properties ]; then
-                echo "gradle.properties não encontrado. Copiando exemplo."
-                cp gradle.properties.example gradle.properties
-            fi
+        if [ ! -f gradle.properties ]; then
+            echo "gradle.properties não encontrado. Copiando exemplo."
+            cp gradle.properties.example gradle.properties
+        fi
         ./gradlew setProductVersion -PproductVersion='${productVersion}'
-        cd ccl-dashboard/frontend
+        cd src/frontend
         changes=$(git diff --name-only src/environments.model.ts)
         if [ ! -z "$changes" ]; then
             git add src/environments/environment.model.ts

@@ -174,9 +174,9 @@ pipeline {
 
         stage('Push nova branch de release') {
             steps {
-                sh '''
-                    git push origin ${BRANCH_NAME}
-                '''
+                sh """
+                    git push origin ${env.BRANCH_NAME}
+                ""
                 echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"
             }
         }

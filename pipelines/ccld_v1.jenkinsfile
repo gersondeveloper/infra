@@ -175,7 +175,7 @@ pipeline {
         stage('Push nova branch de release') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-pat',
-                                          usernameVariable: 'GIT_USERNAME', 
+                                          usernameVariable: 'GIT_USERNAME',
                                           passwordVariable: 'GIT_PASSWORD')]) {
             sh """
                 git config --global credential.helper cache

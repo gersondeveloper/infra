@@ -174,9 +174,15 @@ pipeline {
 
         stage('Push nova branch de release') {
             steps {
-                sh """
-                    git push origin ${env.BRANCH_NAME}
-                """
+                withCredentials([usernamePassword(credentialsId: 'github-pat',
+                                          usernameVariable: 'GIT_USERNAME', 
+                                          passwordVariable: 'GIT_PASSWORD')]) {
+            sh """
+                git config --global credential.helper cache
+                git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/gersondeveloper/ccld.git
+                git push origin ${env.BRANCH_NAME}
+            """
+        }
                 echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"
             }
         }

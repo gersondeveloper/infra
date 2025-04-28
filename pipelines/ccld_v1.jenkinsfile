@@ -97,7 +97,7 @@ pipeline {
                         ''',
                         returnStdout: true
                     ).trim()
-                        echo "<span style='color:green'>✓ Last tag detected: ${env.LAST_TAG}</span>"
+                        echo "\033[1;32m✓ Last tag detected: ${env.LAST_TAG}\033[0m"
                 }
             }
         }

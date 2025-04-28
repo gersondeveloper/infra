@@ -80,7 +80,7 @@ pipeline {
                         ''',
                         returnStdout: true
                     ).trim()
-                    echo "\u001B[32m✔️ Last tag detected: ${env.LAST_TAG}\u001B[0m"
+                        echo "<span style='color:green'>✓ Last tag detected: ${env.LAST_TAG}</span>"
                 }
             }
         }

@@ -25,14 +25,13 @@ pipeline {
             steps {
                 script {
                     env.START_TIME = System.currentTimeMillis()
-                    echo "\u001B[34m====================== Iniciando Pipeline de Release ======================\\u001B[0m"
+                    echo "\u001B[34m====================== Iniciando Pipeline de Release/Hotfix ======================\\u001B[0m"
 
-                    // Configuração global do Git para identidade do autor
                     sh '''
-                        git config --global user.name "jenkins-bot"
-                        git config --global user.email "jenkins@yourcompany.com"
+                        git config --global user.name "Roberto-Bot"
+                        git config --global user.email "jenkins@gersondeveloper.com"
                     '''
-                    echo "\u001B[32m✔️ Configuração de identidade Git definida globalmente\u001B[0m"
+                    echo "\u001B[32m✔️ Git identity set globally \u001B[0m"
                 }
             }
         }
@@ -41,7 +40,7 @@ pipeline {
         stage('Clean Workspace') {
             steps {
                 deleteDir()
-                echo "\u001B[32m✔️ Workspace limpo com sucesso\u001B[0m"
+                echo "\u001B[32m✔️ Workspace successfully cleaned \u001B[0m"
             }
         }
 
@@ -73,7 +72,7 @@ pipeline {
         stage('Detectar Última Tag') {
             steps {
                 script {
-                    echo "\u001B[34m=== Detectando última tag ===\u001B[0m"
+                    echo "\u001B[34m=== Detecting last tag ===\u001B[0m"
                     env.LAST_TAG = sh(
                         script: '''
                             git fetch --tags
@@ -81,27 +80,27 @@ pipeline {
                         ''',
                         returnStdout: true
                     ).trim()
-                    echo "\u001B[32m✔️ Última tag detectada: ${env.LAST_TAG}\u001B[0m"
+                    echo "\u001B[32m✔️ Last tag detected: ${env.LAST_TAG}\u001B[0m"
                 }
             }
         }
 
-        stage('Close Current Version') {
+        /* stage('Close Current Version') {
             steps {
                 script {
-                    echo "\u001B[34m=== Fechando a versão atual ===\u001B[0m"
+                    echo "\u001B[34m=== Closing current version ===\u001B[0m"
                     if (params.PROJECT == 'CCLD' || params.PROJECT == 'ALL') {
                         closeCCLDVersion(params.NEW_VERSION)
                     }
                     if (params.PROJECT == 'CCLM' || params.PROJECT == 'ALL') {
                         closeCCLMVersion(params.NEW_VERSION, env.LAST_TAG)
                     }
-                    echo "\u001B[32m✔️ Versão fechada com sucesso\u001B[0m"
+                    echo "\u001B[32m✔️ Version closed successfully\u001B[0m"
                 }
             }
-        }
+        } */
 
-        stage('Criar nova branch de release') {
+        /* stage('Criar nova branch de release') {
             steps {
                 script {
                     echo "\u001B[34m=== Avaliando necessidade de criação de branch de release ===\u001B[0m"
@@ -116,9 +115,9 @@ pipeline {
                     }
                 }
             }
-        }
+        } */
 
-        stage('Gerar Changelog e Cherry-pick se necessário') {
+        /* stage('Gerar Changelog e Cherry-pick se necessário') {
             steps {
                 script {
                     echo "\u001B[34m=== Gerando changelog e realizando cherry-pick se necessário ===\u001B[0m"
@@ -162,23 +161,23 @@ pipeline {
                     }
                 }
             }
-        }
+        } */
 
-        stage('Atualizar versão no gradle.properties') {
+        /* stage('Atualizar versão no gradle.properties') {
             steps {
                 script {
                     echo "\u001B[34m=== Atualizando versão no gradle.properties ===\u001B[0m"
                     sh '''
-                        sed -i "s/^version=.*/version=${NEW_VERSION}/" gradle.properties
+                        sed -i "s/^version=.*//* version=${NEW_VERSION}/" gradle.properties
                         git add gradle.properties
                         git commit -m "chore: bump version to ${NEW_VERSION}"
                     '''
                     echo "\u001B[32m✔️ Versão atualizada no gradle.properties\u001B[0m"
                 }
             }
-        }
+        } */
 
-        stage('Push nova branch de release') {
+        /* stage('Push nova branch de release') {
             when {
                 expression { return env.BRANCH_NAME }
             }
@@ -194,9 +193,9 @@ pipeline {
                 }
                 echo "\u001B[32m✔️ Branch ${env.BRANCH_NAME} enviada ao repositório\u001B[0m"
             }
-        }
+        } */
 
-        stage('Criar e Push da Tag') {
+       /*  stage('Criar e Push da Tag') {
                 steps {
                     script {
                         echo "\u001B[34m=== Criando e enviando a Tag da versão fechada ===\u001B[0m"
@@ -216,7 +215,7 @@ pipeline {
                 }
             }
         }
-    }
+    } */
 
     post {
         success {
@@ -231,7 +230,6 @@ pipeline {
     }
 }
 
-// Funções auxiliares
 
 def closeCCLDVersion(productVersion) {
     echo "\u001B[34m=== Fechando versão para o projeto CCLD ===\u001B[0m"
@@ -243,7 +241,6 @@ def closeCCLDVersion(productVersion) {
         ./gradlew setProductVersion -PproductVersion='${productVersion}'
     '''
 
-    // Verificar se houve alterações no build.gradle ou na branch
     def changes = sh(
         script: "git status --porcelain | grep 'build.gradle'",
         returnStatus: true
@@ -258,7 +255,6 @@ def closeCCLDVersion(productVersion) {
             returnStdout: true
         ).trim()
 
-        // Adicionar e commitar as alterações
         sh '''
             git add build.gradle
             git commit -m "Versão do produto fechada para ${newVersion}"

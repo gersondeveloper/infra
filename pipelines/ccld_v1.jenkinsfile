@@ -29,14 +29,14 @@ pipeline {
 
     stages {
 
-        stage('Example') {
+        /* stage('Example') {
             steps {
                 echo "\033[1;32mMensagem em Verde Negrito\033[0m"
                 echo "\033[1;31mMensagem em Vermelho Negrito\033[0m"
                 echo "\033[1;33mMensagem em Amarelo Negrito\033[0m"
                 echo "\033[1;34mMensagem em Azul Negrito\033[0m"
             }
-        }
+        } */
 
         stage('Init') {
             steps {
@@ -86,7 +86,7 @@ pipeline {
             }
         }
 
-        /* stage('Detectar Última Tag') {
+        stage('Detectar Última Tag') {
             steps {
                 script {
                     echo "\u001B[34m=== Detecting last tag ===\u001B[0m"
@@ -98,9 +98,13 @@ pipeline {
                         returnStdout: true
                     ).trim()
                         echo "\033[1;32m✓ Last tag detected: ${env.LAST_TAG}\033[0m"
+                        if(env.LAST_TAG == params.NEW_VERSION){
+                            echo "\033[1;33mVersion is already closed! Aborting pipeline.\033[0m"
+                            error("Pipeline aborted! Tag was already created")
+                        }
                 }
             }
-        } */
+        }
 
         /* stage('Close Current Version') {
             steps {

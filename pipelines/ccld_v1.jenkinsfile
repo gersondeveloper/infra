@@ -8,7 +8,7 @@ pipeline {
 
     parameters {
         choice(name: 'PROJECT', choices: ['CCLD', 'CCLM', 'ALL'], description: 'Projeto para gerar release')
-        string(name: 'NEW_VERSION', defaultValue: '1.2.1', description: 'Nova versão a ser gerada (ex: 1.2.1)')
+        string(name: 'NEW_VERSION', description: 'Nova versão/hotfix a ser gerada')
     }
 
     environment {
@@ -86,7 +86,7 @@ pipeline {
             }
         }
 
-        stage('Detectar Última Tag') {
+        /* stage('Detectar Última Tag') {
             steps {
                 script {
                     echo "\u001B[34m=== Detecting last tag ===\u001B[0m"
@@ -100,7 +100,7 @@ pipeline {
                         echo "\033[1;32m✓ Last tag detected: ${env.LAST_TAG}\033[0m"
                 }
             }
-        }
+        } */
 
         /* stage('Close Current Version') {
             steps {
